@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Учёт заказов сервисного центра</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <section id="login-screen" class="login-screen">
+    <form id="login-form" class="login-form">
+      <h1>Сервисный центр</h1>
+      <h2>Вход в систему</h2>
+      <label>Логин
+        <input name="username" required autocomplete="username" maxlength="40">
+      </label>
+      <label>Пароль
+        <input name="password" type="password" required autocomplete="current-password" maxlength="128">
+      </label>
+      <p id="login-error" class="form-error" role="alert"></p>
+      <button class="primary" type="submit">Войти</button>
+    </form>
+  </section>
+
+  <div id="workspace" hidden>
+    <header class="header">
+      <h1>Учёт заказов сервисного центра</h1>
+      <div class="profile">
+        <span id="profile-name"></span>
+        (<span id="profile-role"></span>)
+        <button id="logout">Выйти</button>
+      </div>
+    </header>
+    <nav class="navigation" aria-label="Основная навигация">
+      <button data-page="orders" class="active">Заказы</button>
+      <button data-page="revenue">Доход</button>
+      <button data-page="users" class="admin-only">Сотрудники</button>
+      <span id="current-date"></span>
+    </nav>
+
+    <main>
+      <section id="page-orders" class="page">
+        <div class="page-heading">
+          <h2>Заказы</h2>
+          <button class="primary" id="add-order">Добавить заказ</button>
+        </div>
+        <div class="summary">
+          <span>В работе: <strong id="stat-pending">—</strong></span>
+          <span>Просрочено: <strong id="stat-overdue">—</strong></span>
+          <span>Выполнено: <strong id="stat-completed">—</strong></span>
+          <span>Доход за месяц: <strong id="stat-revenue">—</strong> BYN</span>
+        </div>
+        <div class="order-tools">
+          <div class="filters" aria-label="Фильтр статуса">
+            <button data-status="all" class="selected">Все</button>
+            <button data-status="pending">Невыполненные</button>
+            <button data-status="overdue">Просроченные</button>
+            <button data-status="completed">Выполненные</button>
+          </div>
+          <form id="search-form" class="search">
+            <input id="search" aria-label="Поиск заказов" placeholder="Изделие, владелец или телефон" maxlength="150">
+            <button type="submit">Найти</button>
+          </form>
+        </div>
+        <p class="table-caption">Найдено заказов: <span id="order-count">0</span>. Невыполненные выводятся по сроку выдачи, сначала просроченные.</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Заказ и изделие</th>
+                <th>Владелец</th>
+                <th>Даты</th>
+                <th>Стоимость, BYN</th>
+                <th>Статус</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="order-rows"></tbody>
+          </table>
+          <p id="order-empty" class="empty" hidden>Заказы не найдены.</p>
+        </div>
+        <div class="table-footer">
+          <span id="page-info"></span>
+          <div>
+            <button id="prev-page">Назад</button>
+            <button id="next-page">Далее</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-revenue" class="page" hidden>
+        <h2>Доход за период</h2>
+        <form id="revenue-form" class="report-filter">
+          <label>С даты <input type="date" name="start" required></label>
+          <label>По дату <input type="date" name="end" required></label>
+          <button class="primary" type="submit">Рассчитать</button>
+        </form>
+        <div id="report-result" hidden>
+          <div class="report-summary">
+            <p>Общий доход: <strong id="report-total">0,00</strong> BYN</p>
+            <p>Выполнено заказов: <strong id="report-count">0</strong></p>
+          </div>
+          <p class="hint">Расчёт по дате выполнения. Начальная и конечная даты включены в период.</p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Заказ</th><th>Владелец</th><th>Дата выполнения</th><th>Стоимость, BYN</th></tr></thead>
+              <tbody id="report-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-users" class="page" hidden>
+        <div class="page-heading">
+          <h2>Сотрудники</h2>
+          <button class="primary" id="add-user">Добавить сотрудника</button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Имя</th><th>Логин</th><th>Роль</th><th>Доступ</th><th>Действие</th></tr></thead>
+            <tbody id="user-rows"></tbody>
+          </table>
+        </div>
+        <p class="hint">Оператор работает с заказами и отчётами. Администратор также удаляет заказы и управляет сотрудниками.</p>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="order-dialog">
+    <form id="order-form">
+      <div class="dialog-heading">
+        <h2 id="order-title">Новый заказ</h2>
+        <button type="button" data-close="order-dialog" class="close" aria-label="Закрыть">×</button>
+      </div>
+      <input type="hidden" name="id">
+      <div class="form-grid">
+        <label>Изделие<input name="item_name" required maxlength="100"></label>
+        <label>Марка и модель<input name="brand" required maxlength="100"></label>
+        <label class="full">Ф. И. О. владельца<input name="owner_name" required minlength="2" maxlength="150"></label>
+        <label>Телефон<input type="tel" name="owner_phone" required minlength="7" maxlength="30" placeholder="+375 29 123-45-67"></label>
+        <label>Стоимость, BYN<input type="number" name="cost" required min="0" max="99999999.99" step="0.01"></label>
+        <label>Дата приёмки<input type="date" name="received_on" required></label>
+        <label>Плановая дата выдачи<input type="date" name="planned_on" required></label>
+      </div>
+      <p class="form-error" id="order-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" data-close="order-dialog">Отмена</button>
+        <button class="primary" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="complete-dialog">
+    <form id="complete-form">
+      <div class="dialog-heading">
+        <h2>Завершение заказа</h2>
+        <button type="button" class="close" data-close="complete-dialog" aria-label="Закрыть">×</button>
+      </div>
+      <input type="hidden" name="id">
+      <label>Дата выполнения<input type="date" name="completed_on" required></label>
+      <p class="form-error" id="complete-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" data-close="complete-dialog">Отмена</button>
+        <button type="submit" class="primary">Отметить выполненным</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="user-dialog">
+    <form id="user-form">
+      <div class="dialog-heading">
+        <h2>Новый сотрудник</h2>
+        <button class="close" type="button" data-close="user-dialog" aria-label="Закрыть">×</button>
+      </div>
+      <label>Имя сотрудника<input name="full_name" required minlength="2" maxlength="100"></label>
+      <label>Логин<input name="username" required pattern="[a-zA-Z0-9_.\-]{3,40}" placeholder="Латинские буквы и цифры, от 3 символов" autocomplete="off"></label>
+      <label>Пароль<input name="password" type="password" required minlength="10" maxlength="128" autocomplete="new-password"></label>
+      <label>Роль<select name="role"><option value="operator">Оператор</option><option value="admin">Администратор</option></select></label>
+      <p class="form-error" id="user-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" data-close="user-dialog">Отмена</button>
+        <button class="primary" type="submit">Создать</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog">
+    <form id="confirm-form">
+      <div class="dialog-heading">
+        <h2 id="confirm-title">Подтверждение</h2>
+        <button class="close" type="button" data-close="confirm-dialog" aria-label="Закрыть">×</button>
+      </div>
+      <p id="confirm-message"></p>
+      <p class="form-error" id="confirm-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" data-close="confirm-dialog">Отмена</button>
+        <button type="submit" class="primary" id="confirm-submit">Подтвердить</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>
